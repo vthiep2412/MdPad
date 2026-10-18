@@ -53,21 +53,24 @@ for ($i = 1; $i -le $Iterations; $i++) {
     }
 
     try {
-        # Wait until GUI process enters idle state or exits
-        $exitedOrIdle = $false
-        while (-not $exitedOrIdle -and $stopwatch.ElapsedMilliseconds -lt 5000) {
+        $windowShown = $false
+        while ($stopwatch.ElapsedMilliseconds -lt 5000) {
             $proc.Refresh()
             if ($proc.HasExited) {
-                $exitedOrIdle = $true
-                break
+                Write-Error "Process exited before showing a window (exit code $($proc.ExitCode))."
+                exit 1
             }
             if ($proc.MainWindowHandle -ne [IntPtr]::Zero) {
-                $exitedOrIdle = $true
+                $windowShown = $true
                 break
             }
             Start-Sleep -Milliseconds 5
         }
         $stopwatch.Stop()
+        if (-not $windowShown) {
+            Write-Error "Timed out waiting for main window handle."
+            exit 1
+        }
 
         $elapsedMs = $stopwatch.Elapsed.TotalMilliseconds
         $latencies.Add($elapsedMs)

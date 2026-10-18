@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 slint::include_modules!();
 
 use std::cell::RefCell;
@@ -22,7 +23,10 @@ fn update_render_items(window: &AppWindow, content: &str) {
     for block in blocks {
         let (kind, text, extra, checked) = match block.kind {
             BlockKind::Paragraph(p) => (0, p, String::new(), false),
-            BlockKind::Heading(lvl, h) => (lvl as i32, h, String::new(), false),
+            BlockKind::Heading(lvl, h) => {
+                let kind = if lvl <= 3 { lvl as i32 } else { 6 + lvl as i32 };
+                (kind, h, String::new(), false)
+            }
             BlockKind::TaskItem(chk, txt, _line_idx) => (4, txt, String::new(), chk),
             BlockKind::ListItem(li) => (5, li, String::new(), false),
             BlockKind::Blockquote(bq) => (6, bq, String::new(), false),
@@ -54,7 +58,7 @@ fn update_render_items(window: &AppWindow, content: &str) {
 fn sync_status_bar(window: &AppWindow, doc: &Document) {
     let stats = doc.stats();
     window.set_status_counts(format!("{} words, {} chars", stats.word_count, stats.char_count).into());
-    window.set_status_line_col(format!("Lines: {}", stats.line_count).into());
+    window.set_status_line_col(format!("Ln 1, Col 1 ({} lines)", stats.line_count).into());
 
     let enc_str = if doc.has_bom() { "UTF-8 BOM" } else { "UTF-8" };
     window.set_status_encoding(enc_str.into());
@@ -82,6 +86,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 *doc.borrow_mut() = loaded_doc;
                 watcher.borrow_mut().set_path(Some(file_path));
             }
+        } else {
+            let mut d = doc.borrow_mut();
+            d.set_path(Some(file_path.clone()));
+            watcher.borrow_mut().set_path(Some(file_path));
         }
     }
 
@@ -183,6 +191,11 @@ fn main() -> Result<(), slint::PlatformError> {
     window.on_new_doc(move || {
         let Some(win) = window_weak.upgrade() else { return; };
         let mut d = doc_clone.borrow_mut();
+        if d.is_dirty() {
+            win.set_dialog_text("Save changes before creating a new document?".into());
+            win.set_unsaved_dialog_open(true);
+            return;
+        }
         *d = Document::new();
         win.set_doc_text("".into());
         win.set_window_title(d.window_title().into());
@@ -194,10 +207,15 @@ fn main() -> Result<(), slint::PlatformError> {
     let window_weak = window.as_weak();
     window.on_open_doc(move || {
         let Some(win) = window_weak.upgrade() else { return; };
+        let mut d = doc_clone.borrow_mut();
+        if d.is_dirty() {
+            win.set_dialog_text("Save changes before opening another document?".into());
+            win.set_unsaved_dialog_open(true);
+            return;
+        }
         let default_path = PathBuf::from("Untitled.md");
         if default_path.exists() {
             if let Ok(loaded) = Document::open(&default_path) {
-                let mut d = doc_clone.borrow_mut();
                 *d = loaded;
                 win.set_doc_text(d.content().into());
                 win.set_window_title(d.window_title().into());

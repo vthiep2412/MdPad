@@ -144,6 +144,7 @@ pub fn parse_markdown_blocks(content: &str) -> Vec<MarkdownBlock> {
                 });
                 continue;
             }
+            i = start_line;
         }
 
         blocks.push(MarkdownBlock {
@@ -187,5 +188,9 @@ pub fn toggle_task_checkbox(content: &str, target_line_index: usize) -> String {
             lines[target_line_index] = format!("{}- [ ] {}", indent, &trimmed[6..]);
         }
     }
-    lines.join("\n")
+    let mut out = lines.join("\n");
+    if content.ends_with('\n') {
+        out.push('\n');
+    }
+    out
 }

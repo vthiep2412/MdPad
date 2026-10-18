@@ -261,6 +261,27 @@ export component AppWindow inherits Window {
                             font-weight: 600;
                             color: #333333;
                         }
+                        // Heading 4
+                        if item.kind == 10 : Text {
+                            text: item.text;
+                            font-size: 15px;
+                            font-weight: 600;
+                            color: #444444;
+                        }
+                        // Heading 5
+                        if item.kind == 11 : Text {
+                            text: item.text;
+                            font-size: 14px;
+                            font-weight: 600;
+                            color: #555555;
+                        }
+                        // Heading 6
+                        if item.kind == 12 : Text {
+                            text: item.text;
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: #666666;
+                        }
                         // Paragraph
                         if item.kind == 0 : Text {
                             text: item.text;

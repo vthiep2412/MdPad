@@ -177,7 +177,10 @@ pub fn calculate_document_stats(text: &str) -> DocumentStats {
 }
 
 pub fn calculate_cursor_position(text: &str, byte_offset: usize) -> (usize, usize) {
-    let offset = byte_offset.min(text.len());
+    let mut offset = byte_offset.min(text.len());
+    while !text.is_char_boundary(offset) {
+        offset -= 1;
+    }
     let prefix = &text[..offset];
     let line = prefix.matches('\n').count() + 1;
     let last_newline_pos = prefix.rfind('\n');

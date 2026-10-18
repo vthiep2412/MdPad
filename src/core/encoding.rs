@@ -97,6 +97,14 @@ pub fn save_file<P: AsRef<Path>>(
     has_bom: bool,
     line_ending: LineEnding,
 ) -> Result<(), Error> {
+    use std::io::Write;
     let bytes = encode_to_bytes(content, has_bom, line_ending);
-    fs::write(path, bytes)
+    let path = path.as_ref();
+    let tmp_path = path.with_extension("mdpad.tmp");
+    {
+        let mut file = fs::File::create(&tmp_path)?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+    }
+    fs::rename(&tmp_path, path)
 }
