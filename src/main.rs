@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use slint::{ComponentHandle, ModelRc, VecModel};
 
+use mdpad::core::dialog::{open_file_dialog, save_file_dialog};
 use mdpad::core::document::Document;
 use mdpad::core::encoding::LineEnding;
 use mdpad::core::search::{SearchEngine, SearchMode};
@@ -79,18 +80,24 @@ fn main() -> Result<(), slint::PlatformError> {
     let search_engine = Rc::new(RefCell::new(SearchEngine::default()));
 
     let args: Vec<String> = env::args().collect();
+    let mut opened_file = false;
     if args.len() > 1 {
         let file_path = PathBuf::from(&args[1]);
         if file_path.exists() {
             if let Ok(loaded_doc) = Document::open(&file_path) {
                 *doc.borrow_mut() = loaded_doc;
                 watcher.borrow_mut().set_path(Some(file_path));
+                opened_file = true;
             }
         } else {
             let mut d = doc.borrow_mut();
             d.set_path(Some(file_path.clone()));
             watcher.borrow_mut().set_path(Some(file_path));
         }
+    }
+
+    if !opened_file {
+        window.set_active_mode(1);
     }
 
     {
@@ -172,13 +179,16 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     let doc_clone = Rc::clone(&doc);
+    let watcher_clone = Rc::clone(&watcher);
     let window_weak = window.as_weak();
     window.on_save_doc(move || {
         let Some(win) = window_weak.upgrade() else { return; };
         let mut d = doc_clone.borrow_mut();
         if d.path().is_none() {
-            let default_path = PathBuf::from("Untitled.md");
-            let _ = d.save_as(&default_path);
+            if let Some(target_path) = save_file_dialog("Untitled.md") {
+                let _ = d.save_as(&target_path);
+                watcher_clone.borrow_mut().set_path(Some(target_path));
+            }
         } else {
             let _ = d.save();
         }
@@ -187,6 +197,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     let doc_clone = Rc::clone(&doc);
+    let watcher_clone = Rc::clone(&watcher);
     let window_weak = window.as_weak();
     window.on_new_doc(move || {
         let Some(win) = window_weak.upgrade() else { return; };
@@ -197,13 +208,16 @@ fn main() -> Result<(), slint::PlatformError> {
             return;
         }
         *d = Document::new();
+        watcher_clone.borrow_mut().set_path::<PathBuf>(None);
         win.set_doc_text("".into());
         win.set_window_title(d.window_title().into());
+        win.set_active_mode(1);
         sync_status_bar(&win, &d);
         update_render_items(&win, "");
     });
 
     let doc_clone = Rc::clone(&doc);
+    let watcher_clone = Rc::clone(&watcher);
     let window_weak = window.as_weak();
     window.on_open_doc(move || {
         let Some(win) = window_weak.upgrade() else { return; };
@@ -213,12 +227,13 @@ fn main() -> Result<(), slint::PlatformError> {
             win.set_unsaved_dialog_open(true);
             return;
         }
-        let default_path = PathBuf::from("Untitled.md");
-        if default_path.exists() {
-            if let Ok(loaded) = Document::open(&default_path) {
+        if let Some(picked_path) = open_file_dialog() {
+            if let Ok(loaded) = Document::open(&picked_path) {
                 *d = loaded;
+                watcher_clone.borrow_mut().set_path(Some(picked_path));
                 win.set_doc_text(d.content().into());
                 win.set_window_title(d.window_title().into());
+                win.set_active_mode(0);
                 sync_status_bar(&win, &d);
                 update_render_items(&win, d.content());
             }
@@ -361,17 +376,29 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     let doc_clone = Rc::clone(&doc);
+    let watcher_clone = Rc::clone(&watcher);
     let window_weak = window.as_weak();
     window.on_dialog_action(move |choice| {
         let Some(win) = window_weak.upgrade() else { return; };
         let mut d = doc_clone.borrow_mut();
         match choice {
             0 => {
-                let _ = d.save();
+                if d.path().is_none() {
+                    if let Some(target_path) = save_file_dialog("Untitled.md") {
+                        let _ = d.save_as(&target_path);
+                        watcher_clone.borrow_mut().set_path(Some(target_path));
+                    }
+                } else {
+                    let _ = d.save();
+                }
+                win.set_window_title(d.window_title().into());
+                sync_status_bar(&win, &d);
                 win.set_unsaved_dialog_open(false);
             }
             1 => {
                 d.set_dirty(false);
+                win.set_window_title(d.window_title().into());
+                sync_status_bar(&win, &d);
                 win.set_unsaved_dialog_open(false);
             }
             _ => {
