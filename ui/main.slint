@@ -90,34 +90,33 @@ component FormatButton inherits Rectangle {
     in-out property <int> style_type: 0; // 0: normal, 1: bold, 2: italic, 3: strike, 4: mono
     callback clicked();
 
+    width: 26px;
+    height: 26px;
     border-radius: 4px;
     border-width: 1px;
     border-color: ta.has-hover ? #4b5563 : #333333;
     background: ta.pressed ? #383838 : (ta.has-hover ? #2d2d2d : #222222);
-    height: 24px;
-    min-width: 28px;
 
     ta := TouchArea {
         clicked => { root.clicked(); }
     }
 
     HorizontalLayout {
-        padding-left: 7px;
-        padding-right: 7px;
         alignment: center;
         Text {
             text: root.label;
             color: #f3f4f6;
-            font-size: 11px;
+            font-size: root.label == "```" ? 9px : (root.label == "H1" || root.label == "H2" || root.label == "H3" || root.label == "1." ? 10px : 12px);
             font-weight: style_type == 1 ? 700 : 500;
             font-italic: style_type == 2;
             font-family: style_type == 4 ? "Consolas" : "Segoe UI";
             vertical-alignment: center;
+            horizontal-alignment: center;
         }
     }
 
     if root.style_type == 3 : Rectangle {
-        y: parent.height / 2;
+        y: (parent.height - 1px) / 2;
         x: (parent.width - 10px) / 2;
         width: 10px;
         height: 1px;
@@ -125,11 +124,43 @@ component FormatButton inherits Rectangle {
     }
 }
 
-component ToolbarDivider inherits Rectangle {
-    width: 1px;
-    height: 16px;
-    background: #333333;
-    y: 4px;
+component FindButton inherits Rectangle {
+    in-out property <string> label: "";
+    callback clicked();
+
+    height: 24px;
+    min-width: 26px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: ta.has-hover ? #4b5563 : #333333;
+    background: ta.pressed ? #383838 : (ta.has-hover ? #2d2d2d : #222222);
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+        alignment: center;
+        Text {
+            text: root.label;
+            color: #f3f4f6;
+            font-size: 11px;
+            font-weight: 500;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+component ToolbarDivider inherits VerticalLayout {
+    alignment: center;
+    Rectangle {
+        width: 1px;
+        height: 18px;
+        background: #383838;
+    }
 }
 
 component ModeDropdownButton inherits Rectangle {
@@ -354,7 +385,7 @@ export component AppWindow inherits Window {
 
         // Single Sleek Formatting Toolbar (Hidden in Plain Text Mode and Reading Mode)
         if root.active_mode == 1 || root.active_mode == 2 : Rectangle {
-            height: 32px;
+            height: 36px;
             background: #252525;
             Rectangle {
                 y: parent.height - 1px;
@@ -363,10 +394,12 @@ export component AppWindow inherits Window {
             }
 
             HorizontalLayout {
-                padding-left: 10px;
-                padding-right: 10px;
-                spacing: 4px;
                 alignment: start;
+                padding-left: 12px;
+                padding-right: 12px;
+                padding-top: 5px;
+                padding-bottom: 5px;
+                spacing: 4px;
 
                 FormatButton { label: "B"; style_type: 1; clicked => { root.toolbar_click("bold"); } }
                 FormatButton { label: "I"; style_type: 2; clicked => { root.toolbar_click("italic"); } }
@@ -420,21 +453,21 @@ export component AppWindow inherits Window {
                         text <=> root.find_query;
                         accepted => { root.find_next_clicked(); }
                     }
-                    FormatButton { label: "Prev"; clicked => { root.find_prev_clicked(); } }
-                    FormatButton { label: "Next"; clicked => { root.find_next_clicked(); } }
+                    FindButton { label: "Prev"; clicked => { root.find_prev_clicked(); } }
+                    FindButton { label: "Next"; clicked => { root.find_next_clicked(); } }
                     Text { text: root.match_status; vertical-alignment: center; color: #9ca3af; font-size: 11px; }
 
                     ToolbarDivider {}
 
-                    FormatButton {
+                    FindButton {
                         label: "Aa";
                         clicked => { root.search_case_sensitive = !root.search_case_sensitive; }
                     }
-                    FormatButton {
+                    FindButton {
                         label: "\\b";
                         clicked => { root.search_whole_word = !root.search_whole_word; }
                     }
-                    FormatButton {
+                    FindButton {
                         label: "Fuzzy";
                         clicked => {
                             if root.search_engine_mode == 1 {
@@ -444,7 +477,7 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    FormatButton {
+                    FindButton {
                         label: "Regex";
                         clicked => {
                             if root.search_engine_mode == 2 {
@@ -455,11 +488,11 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    FormatButton {
+                    FindButton {
                         label: root.replace_visible ? "Hide Replace" : "Replace...";
                         clicked => { root.replace_visible = !root.replace_visible; }
                     }
-                    FormatButton {
+                    FindButton {
                         label: "✕";
                         clicked => { root.close_find_bar(); }
                     }
@@ -474,8 +507,8 @@ export component AppWindow inherits Window {
                         width: 180px;
                         text <=> root.replace_query;
                     }
-                    FormatButton { label: "Replace"; clicked => { root.replace_clicked(); } }
-                    FormatButton { label: "Replace All"; clicked => { root.replace_all_clicked(); } }
+                    FindButton { label: "Replace"; clicked => { root.replace_clicked(); } }
+                    FindButton { label: "Replace All"; clicked => { root.replace_all_clicked(); } }
                 }
             }
         }
@@ -735,75 +768,34 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Mode 2: Source Mode (Styled typography with dimmed markdown syntax tokens)
-            if root.active_mode == 2 : ScrollView {
-                VerticalLayout {
-                    padding: 20px;
-                    spacing: 4px;
-                    alignment: start;
-
-                    for item in root.source_lines : Rectangle {
-                        background: transparent;
-
-                        if item.line_index == root.active_source_line : HorizontalLayout {
-                            padding: 2px;
-                            source_edit_box := LineEdit {
-                                text: item.raw_text;
-                                font-size: 14px;
-                                font-family: "Segoe UI";
-                                accepted => {
-                                    root.source_line_committed(item.line_index, self.text);
-                                }
-                                edited => {
-                                    root.source_line_edited(item.line_index, self.text);
-                                }
-                            }
-                        }
-
-                        if item.line_index != root.active_source_line : Rectangle {
-                            TouchArea {
-                                clicked => {
-                                    root.active_source_line = item.line_index;
-                                    root.active_live_line = item.line_index;
-                                }
-                            }
-
-                            HorizontalLayout {
-                                alignment: start;
-                                spacing: 0px;
-
-                                if item.prefix != "" : Text {
-                                    text: item.prefix;
-                                    color: #6b7280;
-                                    font-size: item.kind == 1 ? 22px : (item.kind == 2 ? 18px : (item.kind == 3 ? 16px : 14px));
-                                    font-weight: (item.kind >= 1 && item.kind <= 6) ? 700 : 400;
-                                    font-family: item.kind == 10 ? "Consolas" : "Segoe UI";
-                                    vertical-alignment: center;
-                                }
-
-                                Text {
-                                    text: item.content == "" ? " " : item.content;
-                                    color: #f3f4f6;
-                                    font-size: item.kind == 1 ? 22px : (item.kind == 2 ? 18px : (item.kind == 3 ? 16px : 14px));
-                                    font-weight: (item.kind >= 1 && item.kind <= 6) || item.is_bold ? 700 : 400;
-                                    font-italic: item.kind == 7;
-                                    font-family: item.kind == 10 ? "Consolas" : "Segoe UI";
-                                    wrap: word-wrap;
-                                    vertical-alignment: center;
-                                }
-                            }
-                        }
+            // Mode 2: Source Mode (Active editable text buffer with document typography)
+            if root.active_mode == 2 : VerticalLayout {
+                padding: 0px;
+                source_editor := TextEdit {
+                    text <=> root.doc_text;
+                    font-family: "Segoe UI";
+                    font-size: 14px;
+                    wrap: word-wrap;
+                    init => {
+                        self.focus();
+                    }
+                    edited => {
+                        root.text_edited(root.doc_text);
                     }
                 }
             }
 
             // Mode 3: Plain Text Mode (Strict monospaced unstyled Consolas, classic Notepad)
             if root.active_mode == 3 : VerticalLayout {
-                padding: 6px;
+                padding: 0px;
                 raw_editor := TextEdit {
                     text <=> root.doc_text;
                     font-family: "Consolas";
                     font-size: 14px;
+                    wrap: word-wrap;
+                    init => {
+                        self.focus();
+                    }
                     edited => {
                         root.text_edited(root.doc_text);
                     }
