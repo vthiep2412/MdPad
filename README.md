@@ -24,18 +24,10 @@ MdPad is an ultra-lightweight, standalone native Windows desktop application spe
    - Strict unstyled monospaced text (`Consolas`), identical to classic Windows Notepad.
    - **Invisibility Rule**: The dynamic formatting toolbar automatically hides in this mode.
 
-## Dynamic Top Toolbar
-Offers quick formatting actions:
-- Headings (`H`)
-- Bold (`B`)
-- Italic (`I`)
-- Bullets (`- List`)
-- Checkboxes (`[ ] Task`)
-- Blockquotes (`Quote`)
-- Links (`Link`)
-- Tables (`Table`)
-
-Visible in Modes 1, 2, and 3. Automatically hides in Mode 4.
+## Menu Bar and Formatting Toolbar
+- **Windows 11 Native Menus**: Top left menu bar with File, Edit, Format, View, and Help handling document and editing operations.
+- **Top Right Mode Dropdown**: Compact mode selector for instant switching between Reading, Live Preview, Source, and Plain Text modes.
+- **Visual Format Toolbar**: Sleek formatting row featuring visually styled controls (bold B, italic I, strikethrough S, heading levels H1 to H3, lists, tasks, quote, code, link, and table). Automatically hidden in Reading and Plain Text modes.
 
 ## Unified Find and Replace
 - Compact find bar (`Ctrl+F`), expandable into full replacement drawer (`Ctrl+H`).
