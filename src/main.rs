@@ -13,8 +13,10 @@ use mdpad::core::encoding::LineEnding;
 use mdpad::core::search::{SearchEngine, SearchMode};
 use mdpad::core::watcher::DiskWatcher;
 use mdpad::markdown::{
-    format_bold, format_bullet, format_checkbox, format_heading, format_italic, format_link,
-    format_quote, format_table, parse_markdown_blocks, toggle_task_checkbox, BlockKind,
+    format_bold, format_bullet, format_checkbox, format_code_block, format_heading_level,
+    format_inline_code, format_italic, format_link, format_numbered, format_quote,
+    format_strikethrough, format_table, parse_live_items, parse_markdown_blocks,
+    parse_source_lines, toggle_task_checkbox, update_line_in_text, BlockKind,
 };
 
 fn update_render_items(window: &AppWindow, content: &str) {
@@ -54,6 +56,44 @@ fn update_render_items(window: &AppWindow, content: &str) {
     }
 
     window.set_render_items(ModelRc::new(VecModel::from(items)));
+}
+
+fn update_source_lines(window: &AppWindow, content: &str) {
+    let lines = parse_source_lines(content);
+    let mut items = Vec::new();
+    for l in lines {
+        items.push(SourceLineItem {
+            line_index: l.line_index as i32,
+            raw_text: l.raw_text.into(),
+            prefix: l.prefix.into(),
+            content: l.content.into(),
+            kind: l.kind,
+            is_bold: l.is_bold,
+        });
+    }
+    window.set_source_lines(ModelRc::new(VecModel::from(items)));
+}
+
+fn update_live_items(window: &AppWindow, content: &str) {
+    let items_raw = parse_live_items(content);
+    let mut items = Vec::new();
+    for it in items_raw {
+        items.push(LiveBlockItem {
+            line_index: it.line_index as i32,
+            raw_text: it.raw_text.into(),
+            kind: it.kind,
+            text: it.text.into(),
+            checked: it.checked,
+        });
+    }
+    window.set_live_items(ModelRc::new(VecModel::from(items)));
+}
+
+fn sync_all_views(window: &AppWindow, content: &str) {
+    window.set_doc_text(content.into());
+    update_render_items(window, content);
+    update_source_lines(window, content);
+    update_live_items(window, content);
 }
 
 fn sync_status_bar(window: &AppWindow, doc: &Document) {
@@ -96,15 +136,13 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     }
 
-    if !opened_file {
-        window.set_active_mode(1);
-    }
+    let initial_mode = if opened_file { 0 } else { 2 };
+    window.set_active_mode(initial_mode);
 
     {
         let doc_ref = doc.borrow();
         window.set_window_title(doc_ref.window_title().into());
-        window.set_doc_text(doc_ref.content().into());
-        update_render_items(&window, doc_ref.content());
+        sync_all_views(&window, doc_ref.content());
         sync_status_bar(&window, &doc_ref);
     }
 
@@ -116,19 +154,65 @@ fn main() -> Result<(), slint::PlatformError> {
         d.set_content(new_text.to_string());
         win.set_window_title(d.window_title().into());
         sync_status_bar(&win, &d);
-        if win.get_active_mode() == 0 || win.get_active_mode() == 1 {
-            update_render_items(&win, d.content());
-        }
+        update_render_items(&win, d.content());
+        update_source_lines(&win, d.content());
+        update_live_items(&win, d.content());
     });
 
     let doc_clone = Rc::clone(&doc);
     let window_weak = window.as_weak();
-    window.on_mode_selected(move |mode| {
+    window.on_source_line_edited(move |line_idx, new_line| {
+        let Some(win) = window_weak.upgrade() else { return; };
+        let mut d = doc_clone.borrow_mut();
+        let updated = update_line_in_text(d.content(), line_idx as usize, new_line.as_str());
+        d.set_content(updated);
+        win.set_window_title(d.window_title().into());
+        sync_status_bar(&win, &d);
+        win.set_doc_text(d.content().into());
+        update_render_items(&win, d.content());
+        update_live_items(&win, d.content());
+    });
+
+    let doc_clone = Rc::clone(&doc);
+    let window_weak = window.as_weak();
+    window.on_source_line_committed(move |_line_idx, _new_line| {
         let Some(win) = window_weak.upgrade() else { return; };
         let d = doc_clone.borrow();
-        if mode == 0 || mode == 1 {
-            update_render_items(&win, d.content());
-        }
+        win.set_active_source_line(-1);
+        update_source_lines(&win, d.content());
+    });
+
+    let doc_clone = Rc::clone(&doc);
+    let window_weak = window.as_weak();
+    window.on_live_line_edited(move |line_idx, new_line| {
+        let Some(win) = window_weak.upgrade() else { return; };
+        let mut d = doc_clone.borrow_mut();
+        let updated = update_line_in_text(d.content(), line_idx as usize, new_line.as_str());
+        d.set_content(updated);
+        win.set_window_title(d.window_title().into());
+        sync_status_bar(&win, &d);
+        win.set_doc_text(d.content().into());
+        update_render_items(&win, d.content());
+        update_source_lines(&win, d.content());
+    });
+
+    let doc_clone = Rc::clone(&doc);
+    let window_weak = window.as_weak();
+    window.on_live_line_committed(move |_line_idx, _new_line| {
+        let Some(win) = window_weak.upgrade() else { return; };
+        let d = doc_clone.borrow();
+        win.set_active_live_line(-1);
+        update_live_items(&win, d.content());
+    });
+
+    let doc_clone = Rc::clone(&doc);
+    let window_weak = window.as_weak();
+    window.on_mode_selected(move |_mode| {
+        let Some(win) = window_weak.upgrade() else { return; };
+        let d = doc_clone.borrow();
+        win.set_active_source_line(-1);
+        win.set_active_live_line(-1);
+        sync_all_views(&win, d.content());
     });
 
     let doc_clone = Rc::clone(&doc);
@@ -138,10 +222,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let mut d = doc_clone.borrow_mut();
         let new_content = toggle_task_checkbox(d.content(), line_idx as usize);
         d.set_content(new_content.clone());
-        win.set_doc_text(new_content.into());
         win.set_window_title(d.window_title().into());
         sync_status_bar(&win, &d);
-        update_render_items(&win, d.content());
+        sync_all_views(&win, &new_content);
     });
 
     let doc_clone = Rc::clone(&doc);
@@ -152,13 +235,19 @@ fn main() -> Result<(), slint::PlatformError> {
         let mut content = d.content().to_string();
 
         let token = match action.as_str() {
-            "heading" => format_heading("Heading"),
-            "bold" => format_bold(""),
-            "italic" => format_italic(""),
+            "h1" => format_heading_level(1, "Heading 1"),
+            "h2" => format_heading_level(2, "Heading 2"),
+            "h3" => format_heading_level(3, "Heading 3"),
+            "bold" => format_bold("bold text"),
+            "italic" => format_italic("italic text"),
+            "strike" => format_strikethrough("strikethrough text"),
             "bullet" => format_bullet("List item"),
+            "numbered" => format_numbered(1, "Numbered item"),
             "checkbox" => format_checkbox("Task item"),
             "quote" => format_quote("Quote text"),
-            "link" => format_link(""),
+            "inline_code" => format_inline_code("code"),
+            "code_block" => format_code_block().to_string(),
+            "link" => format_link("link text"),
             "table" => format_table().to_string(),
             _ => String::new(),
         };
@@ -171,10 +260,9 @@ fn main() -> Result<(), slint::PlatformError> {
             content.push('\n');
 
             d.set_content(content.clone());
-            win.set_doc_text(content.into());
             win.set_window_title(d.window_title().into());
             sync_status_bar(&win, &d);
-            update_render_items(&win, d.content());
+            sync_all_views(&win, &content);
         }
     });
 
@@ -199,6 +287,25 @@ fn main() -> Result<(), slint::PlatformError> {
     let doc_clone = Rc::clone(&doc);
     let watcher_clone = Rc::clone(&watcher);
     let window_weak = window.as_weak();
+    window.on_save_as_doc(move || {
+        let Some(win) = window_weak.upgrade() else { return; };
+        let mut d = doc_clone.borrow_mut();
+        let default_name = d
+            .path()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or("Untitled.md");
+        if let Some(target_path) = save_file_dialog(default_name) {
+            let _ = d.save_as(&target_path);
+            watcher_clone.borrow_mut().set_path(Some(target_path));
+            win.set_window_title(d.window_title().into());
+            sync_status_bar(&win, &d);
+        }
+    });
+
+    let doc_clone = Rc::clone(&doc);
+    let watcher_clone = Rc::clone(&watcher);
+    let window_weak = window.as_weak();
     window.on_new_doc(move || {
         let Some(win) = window_weak.upgrade() else { return; };
         let mut d = doc_clone.borrow_mut();
@@ -209,11 +316,10 @@ fn main() -> Result<(), slint::PlatformError> {
         }
         *d = Document::new();
         watcher_clone.borrow_mut().set_path::<PathBuf>(None);
-        win.set_doc_text("".into());
         win.set_window_title(d.window_title().into());
-        win.set_active_mode(1);
+        win.set_active_mode(2);
         sync_status_bar(&win, &d);
-        update_render_items(&win, "");
+        sync_all_views(&win, "");
     });
 
     let doc_clone = Rc::clone(&doc);
@@ -231,11 +337,10 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Ok(loaded) = Document::open(&picked_path) {
                 *d = loaded;
                 watcher_clone.borrow_mut().set_path(Some(picked_path));
-                win.set_doc_text(d.content().into());
                 win.set_window_title(d.window_title().into());
                 win.set_active_mode(0);
                 sync_status_bar(&win, &d);
-                update_render_items(&win, d.content());
+                sync_all_views(&win, d.content());
             }
         }
     });
@@ -280,11 +385,11 @@ fn main() -> Result<(), slint::PlatformError> {
             _ => SearchMode::Normal,
         };
 
-        let matches = engine.find_all(d.content(), query.as_str());
-        if matches.is_empty() {
-            win.set_match_status("No matches".into());
+        let results = engine.find_all(d.content(), query.as_str());
+        if results.is_empty() {
+            win.set_match_status("0 of 0".into());
         } else {
-            win.set_match_status(format!("{} found", matches.len()).into());
+            win.set_match_status(format!("1 of {}", results.len()).into());
         }
     });
 
@@ -305,11 +410,11 @@ fn main() -> Result<(), slint::PlatformError> {
             _ => SearchMode::Normal,
         };
 
-        let matches = engine.find_all(d.content(), query.as_str());
-        if matches.is_empty() {
-            win.set_match_status("No matches".into());
+        let results = engine.find_all(d.content(), query.as_str());
+        if results.is_empty() {
+            win.set_match_status("0 of 0".into());
         } else {
-            win.set_match_status(format!("{} found", matches.len()).into());
+            win.set_match_status(format!("{} of {}", results.len(), results.len()).into());
         }
     });
 
@@ -331,13 +436,12 @@ fn main() -> Result<(), slint::PlatformError> {
             _ => SearchMode::Normal,
         };
 
-        let (new_text, replaced) = engine.replace_next(d.content(), query.as_str(), replacement.as_str(), 0);
+        let (new_text, replaced) = engine.replace(d.content(), query.as_str(), replacement.as_str());
         if replaced {
             d.set_content(new_text.clone());
-            win.set_doc_text(new_text.into());
             win.set_window_title(d.window_title().into());
             sync_status_bar(&win, &d);
-            update_render_items(&win, d.content());
+            sync_all_views(&win, &new_text);
             win.set_match_status("Replaced".into());
         } else {
             win.set_match_status("No match".into());
@@ -365,13 +469,27 @@ fn main() -> Result<(), slint::PlatformError> {
         let (new_text, count) = engine.replace_all(d.content(), query.as_str(), replacement.as_str());
         if count > 0 {
             d.set_content(new_text.clone());
-            win.set_doc_text(new_text.into());
             win.set_window_title(d.window_title().into());
             sync_status_bar(&win, &d);
-            update_render_items(&win, d.content());
+            sync_all_views(&win, &new_text);
             win.set_match_status(format!("Replaced {} matches", count).into());
         } else {
             win.set_match_status("No matches".into());
+        }
+    });
+
+    let window_weak = window.as_weak();
+    window.on_menu_action(move |action| {
+        let Some(win) = window_weak.upgrade() else { return; };
+        match action.as_str() {
+            "exit" => {
+                let _ = win.hide();
+            }
+            "about" => {
+                win.set_dialog_text("MdPad v0.1.0\nLightweight native Markdown reader and editor".into());
+                win.set_unsaved_dialog_open(true);
+            }
+            _ => {}
         }
     });
 

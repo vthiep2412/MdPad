@@ -1,4 +1,4 @@
-import { Button, ComboBox, LineEdit, TextEdit, ScrollView, CheckBox, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { LineEdit, TextEdit, ScrollView, CheckBox } from "std-widgets.slint";
 
 export struct RenderItem {
     kind: int,
@@ -8,28 +8,76 @@ export struct RenderItem {
     checked: bool,
 }
 
-component ToolbarButton inherits Rectangle {
+export struct SourceLineItem {
+    line_index: int,
+    raw_text: string,
+    prefix: string,
+    content: string,
+    kind: int,
+    is_bold: bool,
+}
+
+export struct LiveBlockItem {
+    line_index: int,
+    raw_text: string,
+    kind: int,
+    text: string,
+    checked: bool,
+}
+
+component MenuItem inherits Rectangle {
     in-out property <string> text: "";
-    in-out property <bool> is_active: false;
+    in-out property <string> shortcut: "";
     callback clicked();
 
+    height: 28px;
+    background: ta.has-hover ? #2e2e2e : transparent;
     border-radius: 4px;
-    border-width: 1px;
-    border-color: is_active ? #2563eb : (ta.has-hover ? #9ca3af : #d1d5db);
-    background: is_active ? #2563eb : (ta.pressed ? #e5e7eb : (ta.has-hover ? #f3f4f6 : #ffffff));
-    height: 26px;
 
     ta := TouchArea {
         clicked => { root.clicked(); }
     }
 
     HorizontalLayout {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-left: 12px;
+        padding-right: 12px;
+        alignment: space-between;
+
+        Text {
+            text: root.text;
+            color: #f3f4f6;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+        if root.shortcut != "" : Text {
+            text: root.shortcut;
+            color: #9ca3af;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component MenuBarButton inherits Rectangle {
+    in-out property <string> text: "";
+    in-out property <bool> is_open: false;
+    callback clicked();
+
+    height: 28px;
+    background: is_open ? #333333 : (ta.has-hover ? #2a2a2a : transparent);
+    border-radius: 4px;
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
         alignment: center;
         Text {
             text: root.text;
-            color: is_active ? #ffffff : #1f2937;
+            color: is_open ? #ffffff : (ta.has-hover ? #ffffff : #d1d5db);
             font-size: 12px;
             font-weight: 500;
             vertical-alignment: center;
@@ -37,28 +85,116 @@ component ToolbarButton inherits Rectangle {
     }
 }
 
-component ModeButton inherits Rectangle {
-    in-out property <string> text: "";
-    in-out property <bool> is_active: false;
+component FormatButton inherits Rectangle {
+    in-out property <string> label: "";
+    in-out property <int> style_type: 0; // 0: normal, 1: bold, 2: italic, 3: strike, 4: mono
     callback clicked();
 
-    border-radius: 3px;
-    background: is_active ? #2563eb : (ta.has-hover ? #cbd5e1 : transparent);
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: ta.has-hover ? #4b5563 : #333333;
+    background: ta.pressed ? #383838 : (ta.has-hover ? #2d2d2d : #222222);
     height: 24px;
+    min-width: 28px;
 
     ta := TouchArea {
         clicked => { root.clicked(); }
     }
 
     HorizontalLayout {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-left: 7px;
+        padding-right: 7px;
+        alignment: center;
+        Text {
+            text: root.label;
+            color: #f3f4f6;
+            font-size: 11px;
+            font-weight: style_type == 1 ? 700 : 500;
+            font-italic: style_type == 2;
+            font-family: style_type == 4 ? "Consolas" : "Segoe UI";
+            vertical-alignment: center;
+        }
+    }
+
+    if root.style_type == 3 : Rectangle {
+        y: parent.height / 2;
+        x: (parent.width - 10px) / 2;
+        width: 10px;
+        height: 1px;
+        background: #f3f4f6;
+    }
+}
+
+component ToolbarDivider inherits Rectangle {
+    width: 1px;
+    height: 16px;
+    background: #333333;
+    y: 4px;
+}
+
+component ModeDropdownButton inherits Rectangle {
+    in-out property <string> current_mode_name: "Source Mode";
+    in-out property <bool> is_open: false;
+    callback clicked();
+
+    height: 26px;
+    background: is_open ? #333333 : (ta.has-hover ? #2d2d2d : #222222);
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: is_open ? #60a5fa : #374151;
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 6px;
+        alignment: center;
+
+        Text {
+            text: "Mode: " + root.current_mode_name;
+            color: #f3f4f6;
+            font-size: 11px;
+            font-weight: 500;
+            vertical-alignment: center;
+        }
+        Text {
+            text: "▼";
+            color: #9ca3af;
+            font-size: 8px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component AppDialogButton inherits Rectangle {
+    in-out property <string> text: "";
+    in-out property <bool> is_primary: false;
+    callback clicked();
+
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: is_primary ? #2563eb : (ta.has-hover ? #4b5563 : #374151);
+    background: is_primary ? (ta.pressed ? #1d4ed8 : (ta.has-hover ? #3b82f6 : #2563eb))
+                           : (ta.pressed ? #383838 : (ta.has-hover ? #2d2d2d : #222222));
+    height: 28px;
+    min-width: 80px;
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
         alignment: center;
         Text {
             text: root.text;
-            color: is_active ? #ffffff : (ta.has-hover ? #0f172a : #334155);
-            font-size: 11px;
-            font-weight: is_active ? 600 : 500;
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 500;
             vertical-alignment: center;
         }
     }
@@ -66,18 +202,23 @@ component ModeButton inherits Rectangle {
 
 export component AppWindow inherits Window {
     title: window_title;
-    preferred-width: 900px;
-    preferred-height: 650px;
-    min-width: 500px;
-    min-height: 350px;
-    background: #ffffff;
+    preferred-width: 960px;
+    preferred-height: 680px;
+    min-width: 550px;
+    min-height: 380px;
+    background: #1e1e1e;
 
     in-out property <string> window_title: "Untitled - MdPad";
-    in-out property <int> active_mode: 0; // 0: Reading, 1: Live Preview, 2: Source, 3: Raw Plain Text
+    in-out property <int> active_mode: 2; // 0: Reading, 1: Live Preview, 2: Source, 3: Plain Text
     in-out property <string> doc_text: "";
     in-out property <[RenderItem]> render_items: [];
+    in-out property <[SourceLineItem]> source_lines: [];
+    in-out property <[LiveBlockItem]> live_items: [];
 
-    in-out property <string> status_line_col: "Ln 1, Col 1";
+    in-out property <int> active_source_line: -1;
+    in-out property <int> active_live_line: -1;
+
+    in-out property <string> status_line_col: "Ln 1, Col 1 (1 lines)";
     in-out property <string> status_counts: "0 words, 0 chars";
     in-out property <string> status_encoding: "UTF-8";
     in-out property <string> status_line_ending: "CRLF";
@@ -92,6 +233,9 @@ export component AppWindow inherits Window {
     in-out property <bool> search_whole_word: false;
     in-out property <int> search_engine_mode: 0; // 0: Normal, 1: Fuzzy, 2: Regex
 
+    in-out property <int> active_menu: -1; // -1: none, 0: File, 1: Edit, 2: Format, 3: View, 4: Help
+    in-out property <bool> mode_dropdown_open: false;
+
     in-out property <bool> unsaved_dialog_open: false;
     in-out property <string> dialog_text: "Do you want to save changes?";
 
@@ -100,6 +244,7 @@ export component AppWindow inherits Window {
     callback toolbar_click(string);
     callback toggle_task_clicked(int);
     callback save_doc();
+    callback save_as_doc();
     callback open_doc();
     callback new_doc();
     callback trigger_find();
@@ -111,169 +256,186 @@ export component AppWindow inherits Window {
     callback replace_all_clicked();
     callback dialog_action(int); // 0: Save, 1: DontSave, 2: Cancel
 
-    VerticalBox {
+    callback source_line_edited(int, string);
+    callback source_line_committed(int, string);
+    callback live_line_edited(int, string);
+    callback live_line_committed(int, string);
+    callback menu_action(string);
+
+    function get_current_mode_name() -> string {
+        if root.active_mode == 0 { return "Reading Mode"; }
+        if root.active_mode == 1 { return "Live Preview"; }
+        if root.active_mode == 2 { return "Source Mode"; }
+        return "Plain Text";
+    }
+
+    VerticalLayout {
         padding: 0px;
         spacing: 0px;
 
-        // Top Navigation Bar
+        // Top Header: Traditional Menu Bar on Left, Mode Selector on Right
         Rectangle {
-            height: 38px;
-            background: #f8fafc;
+            height: 34px;
+            background: #202020;
             Rectangle {
                 y: parent.height - 1px;
                 height: 1px;
-                background: #e2e8f0;
+                background: #2b2b2b;
             }
 
             HorizontalLayout {
                 padding-left: 8px;
                 padding-right: 8px;
-                spacing: 8px;
                 alignment: space-between;
 
+                // Left: Menu Bar
                 HorizontalLayout {
-                    spacing: 6px;
+                    spacing: 2px;
                     alignment: start;
 
-                    Rectangle {
-                        background: #e2e8f0;
-                        border-radius: 4px;
-                        height: 28px;
-                        HorizontalLayout {
-                            spacing: 2px;
-                            padding-left: 2px;
-                            padding-right: 2px;
-                            padding-top: 2px;
-                            padding-bottom: 2px;
-                            ModeButton {
-                                text: "Reading";
-                                is_active: root.active_mode == 0;
-                                clicked => {
-                                    root.active_mode = 0;
-                                    root.mode_selected(0);
-                                }
-                            }
-                            ModeButton {
-                                text: "Live Preview";
-                                is_active: root.active_mode == 1;
-                                clicked => {
-                                    root.active_mode = 1;
-                                    root.mode_selected(1);
-                                }
-                            }
-                            ModeButton {
-                                text: "Source";
-                                is_active: root.active_mode == 2;
-                                clicked => {
-                                    root.active_mode = 2;
-                                    root.mode_selected(2);
-                                }
-                            }
-                            ModeButton {
-                                text: "Plain Text";
-                                is_active: root.active_mode == 3;
-                                clicked => {
-                                    root.active_mode = 3;
-                                    root.mode_selected(3);
-                                }
-                            }
+                    MenuBarButton {
+                        text: "File";
+                        is_open: root.active_menu == 0;
+                        clicked => {
+                            root.mode_dropdown_open = false;
+                            root.active_menu = root.active_menu == 0 ? -1 : 0;
                         }
                     }
+                    MenuBarButton {
+                        text: "Edit";
+                        is_open: root.active_menu == 1;
+                        clicked => {
+                            root.mode_dropdown_open = false;
+                            root.active_menu = root.active_menu == 1 ? -1 : 1;
+                        }
+                    }
+                    MenuBarButton {
+                        text: "Format";
+                        is_open: root.active_menu == 2;
+                        clicked => {
+                            root.mode_dropdown_open = false;
+                            root.active_menu = root.active_menu == 2 ? -1 : 2;
+                        }
+                    }
+                    MenuBarButton {
+                        text: "View";
+                        is_open: root.active_menu == 3;
+                        clicked => {
+                            root.mode_dropdown_open = false;
+                            root.active_menu = root.active_menu == 3 ? -1 : 3;
+                        }
+                    }
+                    MenuBarButton {
+                        text: "Help";
+                        is_open: root.active_menu == 4;
+                        clicked => {
+                            root.mode_dropdown_open = false;
+                            root.active_menu = root.active_menu == 4 ? -1 : 4;
+                        }
+                    }
+                }
 
-                    Rectangle { width: 1px; background: #cbd5e1; height: 22px; y: 3px; }
+                // Right: Compact Mode Dropdown
+                HorizontalLayout {
+                    alignment: end;
+                    padding-top: 4px;
 
-                    ToolbarButton {
-                        text: "New";
-                        clicked => { root.new_doc(); }
-                    }
-                    ToolbarButton {
-                        text: "Open";
-                        clicked => { root.open_doc(); }
-                    }
-                    ToolbarButton {
-                        text: "Save";
-                        clicked => { root.save_doc(); }
-                    }
-                    ToolbarButton {
-                        text: "Find";
-                        clicked => { root.trigger_find(); }
+                    ModeDropdownButton {
+                        current_mode_name: root.get_current_mode_name();
+                        is_open: root.mode_dropdown_open;
+                        clicked => {
+                            root.active_menu = -1;
+                            root.mode_dropdown_open = !root.mode_dropdown_open;
+                        }
                     }
                 }
             }
         }
 
-        // Dynamic Formatting Toolbar (Strictly hidden in Mode 3 Raw Plain Text Mode)
-        if root.active_mode != 3 : Rectangle {
+        // Single Sleek Formatting Toolbar (Hidden in Plain Text Mode and Reading Mode)
+        if root.active_mode == 1 || root.active_mode == 2 : Rectangle {
             height: 32px;
-            background: #fafafa;
+            background: #252525;
             Rectangle {
                 y: parent.height - 1px;
                 height: 1px;
-                background: #e5e7eb;
+                background: #2b2b2b;
             }
 
             HorizontalLayout {
-                padding-left: 8px;
-                padding-right: 8px;
+                padding-left: 10px;
+                padding-right: 10px;
                 spacing: 4px;
                 alignment: start;
 
-                ToolbarButton { text: "H"; clicked => { root.toolbar_click("heading"); } }
-                ToolbarButton { text: "B"; clicked => { root.toolbar_click("bold"); } }
-                ToolbarButton { text: "I"; clicked => { root.toolbar_click("italic"); } }
-                ToolbarButton { text: "- List"; clicked => { root.toolbar_click("bullet"); } }
-                ToolbarButton { text: "[ ] Task"; clicked => { root.toolbar_click("checkbox"); } }
-                ToolbarButton { text: "Quote"; clicked => { root.toolbar_click("quote"); } }
-                ToolbarButton { text: "Link"; clicked => { root.toolbar_click("link"); } }
-                ToolbarButton { text: "Table"; clicked => { root.toolbar_click("table"); } }
+                FormatButton { label: "B"; style_type: 1; clicked => { root.toolbar_click("bold"); } }
+                FormatButton { label: "I"; style_type: 2; clicked => { root.toolbar_click("italic"); } }
+                FormatButton { label: "S"; style_type: 3; clicked => { root.toolbar_click("strike"); } }
+
+                ToolbarDivider {}
+
+                FormatButton { label: "H1"; style_type: 1; clicked => { root.toolbar_click("h1"); } }
+                FormatButton { label: "H2"; style_type: 1; clicked => { root.toolbar_click("h2"); } }
+                FormatButton { label: "H3"; style_type: 1; clicked => { root.toolbar_click("h3"); } }
+
+                ToolbarDivider {}
+
+                FormatButton { label: "•"; style_type: 0; clicked => { root.toolbar_click("bullet"); } }
+                FormatButton { label: "1."; style_type: 0; clicked => { root.toolbar_click("numbered"); } }
+                FormatButton { label: "☑"; style_type: 0; clicked => { root.toolbar_click("checkbox"); } }
+
+                ToolbarDivider {}
+
+                FormatButton { label: "“"; style_type: 0; clicked => { root.toolbar_click("quote"); } }
+                FormatButton { label: "`"; style_type: 4; clicked => { root.toolbar_click("inline_code"); } }
+                FormatButton { label: "```"; style_type: 4; clicked => { root.toolbar_click("code_block"); } }
+                FormatButton { label: "🔗"; style_type: 0; clicked => { root.toolbar_click("link"); } }
+                FormatButton { label: "⊞"; style_type: 0; clicked => { root.toolbar_click("table"); } }
             }
         }
 
-        // Unified Find and Replace Drawer
+        // Find and Replace Drawer
         if root.find_visible : Rectangle {
             height: root.replace_visible ? 76px : 38px;
-            background: #fdfdfd;
+            background: #222222;
             Rectangle {
                 y: parent.height - 1px;
                 height: 1px;
-                background: #cccccc;
+                background: #333333;
             }
 
             VerticalLayout {
                 padding: 4px;
-                padding-left: 8px;
-                padding-right: 8px;
+                padding-left: 10px;
+                padding-right: 10px;
                 spacing: 4px;
 
                 HorizontalLayout {
                     spacing: 6px;
                     alignment: start;
 
-                    Text { text: "Find:"; vertical-alignment: center; }
+                    Text { text: "Find:"; color: #d1d5db; vertical-alignment: center; font-size: 12px; }
                     find_input := LineEdit {
                         width: 180px;
                         text <=> root.find_query;
                         accepted => { root.find_next_clicked(); }
                     }
-                    ToolbarButton { text: "Prev"; clicked => { root.find_prev_clicked(); } }
-                    ToolbarButton { text: "Next"; clicked => { root.find_next_clicked(); } }
-                    Text { text: root.match_status; vertical-alignment: center; color: #555555; }
+                    FormatButton { label: "Prev"; clicked => { root.find_prev_clicked(); } }
+                    FormatButton { label: "Next"; clicked => { root.find_next_clicked(); } }
+                    Text { text: root.match_status; vertical-alignment: center; color: #9ca3af; font-size: 11px; }
 
-                    Rectangle { width: 1px; background: #e0e0e0; height: 20px; }
+                    ToolbarDivider {}
 
-                    ToolbarButton {
-                        text: "Aa";
-                        is_active: root.search_case_sensitive;
+                    FormatButton {
+                        label: "Aa";
                         clicked => { root.search_case_sensitive = !root.search_case_sensitive; }
                     }
-                    ToolbarButton {
-                        text: "\\b";
-                        is_active: root.search_whole_word;
+                    FormatButton {
+                        label: "\\b";
                         clicked => { root.search_whole_word = !root.search_whole_word; }
                     }
-                    ToolbarButton {
-                        text: "Fuzzy";
-                        is_active: root.search_engine_mode == 1;
+                    FormatButton {
+                        label: "Fuzzy";
                         clicked => {
                             if root.search_engine_mode == 1 {
                                 root.search_engine_mode = 0;
@@ -282,9 +444,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    ToolbarButton {
-                        text: "Regex";
-                        is_active: root.search_engine_mode == 2;
+                    FormatButton {
+                        label: "Regex";
                         clicked => {
                             if root.search_engine_mode == 2 {
                                 root.search_engine_mode = 0;
@@ -294,13 +455,12 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    ToolbarButton {
-                        text: root.replace_visible ? "Hide Replace" : "Replace...";
-                        is_active: root.replace_visible;
+                    FormatButton {
+                        label: root.replace_visible ? "Hide Replace" : "Replace...";
                         clicked => { root.replace_visible = !root.replace_visible; }
                     }
-                    ToolbarButton {
-                        text: "X";
+                    FormatButton {
+                        label: "✕";
                         clicked => { root.close_find_bar(); }
                     }
                 }
@@ -309,23 +469,24 @@ export component AppWindow inherits Window {
                     spacing: 6px;
                     alignment: start;
 
-                    Text { text: "Replace:"; vertical-alignment: center; }
+                    Text { text: "Replace:"; color: #d1d5db; vertical-alignment: center; font-size: 12px; }
                     replace_input := LineEdit {
                         width: 180px;
                         text <=> root.replace_query;
                     }
-                    ToolbarButton { text: "Replace"; clicked => { root.replace_clicked(); } }
-                    ToolbarButton { text: "Replace All"; clicked => { root.replace_all_clicked(); } }
+                    FormatButton { label: "Replace"; clicked => { root.replace_clicked(); } }
+                    FormatButton { label: "Replace All"; clicked => { root.replace_all_clicked(); } }
                 }
             }
         }
 
-        // Central Document View Container
+        // Central Document View Area
         Rectangle {
             clip: true;
             vertical-stretch: 1;
+            background: #1e1e1e;
 
-            // Mode 0: Reading Mode (Default on open)
+            // Mode 0: Reading Mode (Pure rendered Markdown, zero editor clutter)
             if root.active_mode == 0 : ScrollView {
                 VerticalLayout {
                     padding: 24px;
@@ -333,9 +494,9 @@ export component AppWindow inherits Window {
                     alignment: start;
 
                     if root.render_items.length == 0 : Text {
-                        text: "Empty document. Click 'Live Preview' or 'Source' above to write, or click 'Open' to load a Markdown file.";
+                        text: "Empty document. Click 'Mode' in the top-right to edit, or use File > Open.";
                         font-size: 14px;
-                        color: #888888;
+                        color: #6b7280;
                         font-italic: true;
                     }
 
@@ -343,56 +504,48 @@ export component AppWindow inherits Window {
                         spacing: 8px;
                         alignment: start;
 
-                        // Heading 1
                         if item.kind == 1 : Text {
                             text: item.text;
                             font-size: 24px;
                             font-weight: 700;
-                            color: #111111;
+                            color: #f3f4f6;
                         }
-                        // Heading 2
                         if item.kind == 2 : Text {
                             text: item.text;
                             font-size: 20px;
                             font-weight: 600;
-                            color: #222222;
+                            color: #e5e7eb;
                         }
-                        // Heading 3
                         if item.kind == 3 : Text {
                             text: item.text;
                             font-size: 16px;
                             font-weight: 600;
-                            color: #333333;
+                            color: #d1d5db;
                         }
-                        // Heading 4
                         if item.kind == 10 : Text {
                             text: item.text;
                             font-size: 15px;
                             font-weight: 600;
-                            color: #444444;
+                            color: #9ca3af;
                         }
-                        // Heading 5
                         if item.kind == 11 : Text {
                             text: item.text;
                             font-size: 14px;
                             font-weight: 600;
-                            color: #555555;
+                            color: #9ca3af;
                         }
-                        // Heading 6
                         if item.kind == 12 : Text {
                             text: item.text;
                             font-size: 13px;
                             font-weight: 600;
-                            color: #666666;
+                            color: #6b7280;
                         }
-                        // Paragraph
                         if item.kind == 0 : Text {
                             text: item.text;
                             font-size: 14px;
-                            color: #222222;
+                            color: #e5e7eb;
                             wrap: word-wrap;
                         }
-                        // Task Item
                         if item.kind == 4 : HorizontalLayout {
                             spacing: 8px;
                             CheckBox {
@@ -404,18 +557,18 @@ export component AppWindow inherits Window {
                             Text {
                                 text: item.text;
                                 font-size: 14px;
+                                color: item.checked ? #6b7280 : #e5e7eb;
                                 vertical-alignment: center;
                             }
                         }
-                        // List Item
                         if item.kind == 5 : HorizontalLayout {
                             spacing: 8px;
-                            Text { text: "•"; font-size: 14px; color: #555555; }
-                            Text { text: item.text; font-size: 14px; color: #222222; }
+                            Text { text: "•"; font-size: 14px; color: #6b7280; }
+                            Text { text: item.text; font-size: 14px; color: #e5e7eb; }
                         }
-                        // Blockquote
                         if item.kind == 6 : Rectangle {
-                            background: #f7f7f7;
+                            background: #252525;
+                            border-radius: 2px;
                             Rectangle {
                                 x: 0px;
                                 width: 4px;
@@ -429,72 +582,225 @@ export component AppWindow inherits Window {
                                     text: item.text;
                                     font-size: 14px;
                                     font-italic: true;
-                                    color: #444444;
+                                    color: #d1d5db;
                                 }
                             }
                         }
-                        // Code Block
                         if item.kind == 7 : Rectangle {
-                            background: #f4f4f4;
+                            background: #181818;
                             border-radius: 4px;
                             border-width: 1px;
-                            border-color: #e5e5e5;
+                            border-color: #2e2e2e;
                             HorizontalLayout {
                                 padding: 8px;
                                 Text {
                                     text: item.text;
                                     font-family: "Consolas";
                                     font-size: 13px;
-                                    color: #1e293b;
+                                    color: #e2e8f0;
                                 }
                             }
                         }
-
-                        // Thematic Break
                         if item.kind == 8 : Rectangle {
                             height: 1px;
-                            background: #dddddd;
+                            background: #374151;
                         }
-                        // Table representation
                         if item.kind == 9 : Text {
                             text: item.text;
                             font-family: "Consolas";
                             font-size: 13px;
-                            color: #111827;
+                            color: #e5e7eb;
                         }
                     }
                 }
             }
 
-            // Mode 1: Live Preview Mode (Obsidian style inline hybrid formatting)
-            if root.active_mode == 1 : VerticalLayout {
-                padding: 12px;
-                live_edit := TextEdit {
-                    text <=> root.doc_text;
-                    font-size: 14px;
-                    edited => {
-                        root.text_edited(root.doc_text);
+            // Mode 1: Live Preview Mode (Formatted layout expanding active line to raw syntax)
+            if root.active_mode == 1 : ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 6px;
+                    alignment: start;
+
+                    for item in root.live_items : Rectangle {
+                        background: transparent;
+
+                        if item.line_index == root.active_live_line : HorizontalLayout {
+                            padding: 2px;
+                            live_edit_box := LineEdit {
+                                text: item.raw_text;
+                                font-size: 14px;
+                                font-family: "Segoe UI";
+                                accepted => {
+                                    root.live_line_committed(item.line_index, self.text);
+                                }
+                                edited => {
+                                    root.live_line_edited(item.line_index, self.text);
+                                }
+                            }
+                        }
+
+                        if item.line_index != root.active_live_line : Rectangle {
+                            TouchArea {
+                                clicked => {
+                                    root.active_live_line = item.line_index;
+                                    root.active_source_line = item.line_index;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                alignment: start;
+                                spacing: 8px;
+
+                                if item.kind == 1 : Text {
+                                    text: item.text;
+                                    font-size: 24px;
+                                    font-weight: 700;
+                                    color: #f3f4f6;
+                                }
+                                if item.kind == 2 : Text {
+                                    text: item.text;
+                                    font-size: 20px;
+                                    font-weight: 600;
+                                    color: #e5e7eb;
+                                }
+                                if item.kind == 3 : Text {
+                                    text: item.text;
+                                    font-size: 16px;
+                                    font-weight: 600;
+                                    color: #d1d5db;
+                                }
+                                if item.kind == 4 || item.kind == 5 || item.kind == 6 : Text {
+                                    text: item.text;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    color: #9ca3af;
+                                }
+                                if item.kind == 7 : HorizontalLayout {
+                                    spacing: 8px;
+                                    CheckBox {
+                                        checked: item.checked;
+                                        toggled => {
+                                            root.toggle_task_clicked(item.line_index);
+                                        }
+                                    }
+                                    Text {
+                                        text: item.text;
+                                        font-size: 14px;
+                                        color: item.checked ? #6b7280 : #e5e7eb;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                if item.kind == 8 : HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { text: "•"; font-size: 14px; color: #6b7280; }
+                                    Text { text: item.text; font-size: 14px; color: #e5e7eb; }
+                                }
+                                if item.kind == 9 : HorizontalLayout {
+                                    spacing: 8px;
+                                    Rectangle { width: 3px; background: #3b82f6; }
+                                    Text {
+                                        text: item.text;
+                                        font-size: 14px;
+                                        font-italic: true;
+                                        color: #d1d5db;
+                                    }
+                                }
+                                if item.kind == 10 : Rectangle {
+                                    background: #181818;
+                                    border-radius: 4px;
+                                    HorizontalLayout {
+                                        padding: 4px;
+                                        Text {
+                                            text: item.text;
+                                            font-family: "Consolas";
+                                            font-size: 13px;
+                                            color: #e2e8f0;
+                                        }
+                                    }
+                                }
+                                if item.kind == 11 : Rectangle {
+                                    height: 1px;
+                                    background: #374151;
+                                }
+                                if item.kind == 0 : Text {
+                                    text: item.text == "" ? " " : item.text;
+                                    font-size: 14px;
+                                    color: #e5e7eb;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            // Mode 2: Source Mode (Proportional font, dimmed syntax tokens, large bold headings)
-            if root.active_mode == 2 : VerticalLayout {
-                padding: 12px;
-                source_edit := TextEdit {
-                    text <=> root.doc_text;
-                    font-size: 15px;
-                    font-family: "Segoe UI";
-                    edited => {
-                        root.text_edited(root.doc_text);
+            // Mode 2: Source Mode (Styled typography with dimmed markdown syntax tokens)
+            if root.active_mode == 2 : ScrollView {
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 4px;
+                    alignment: start;
+
+                    for item in root.source_lines : Rectangle {
+                        background: transparent;
+
+                        if item.line_index == root.active_source_line : HorizontalLayout {
+                            padding: 2px;
+                            source_edit_box := LineEdit {
+                                text: item.raw_text;
+                                font-size: 14px;
+                                font-family: "Segoe UI";
+                                accepted => {
+                                    root.source_line_committed(item.line_index, self.text);
+                                }
+                                edited => {
+                                    root.source_line_edited(item.line_index, self.text);
+                                }
+                            }
+                        }
+
+                        if item.line_index != root.active_source_line : Rectangle {
+                            TouchArea {
+                                clicked => {
+                                    root.active_source_line = item.line_index;
+                                    root.active_live_line = item.line_index;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                alignment: start;
+                                spacing: 0px;
+
+                                if item.prefix != "" : Text {
+                                    text: item.prefix;
+                                    color: #6b7280;
+                                    font-size: item.kind == 1 ? 22px : (item.kind == 2 ? 18px : (item.kind == 3 ? 16px : 14px));
+                                    font-weight: (item.kind >= 1 && item.kind <= 6) ? 700 : 400;
+                                    font-family: item.kind == 10 ? "Consolas" : "Segoe UI";
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: item.content == "" ? " " : item.content;
+                                    color: #f3f4f6;
+                                    font-size: item.kind == 1 ? 22px : (item.kind == 2 ? 18px : (item.kind == 3 ? 16px : 14px));
+                                    font-weight: (item.kind >= 1 && item.kind <= 6) || item.is_bold ? 700 : 400;
+                                    font-italic: item.kind == 7;
+                                    font-family: item.kind == 10 ? "Consolas" : "Segoe UI";
+                                    wrap: word-wrap;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            // Mode 3: Raw Plain Text Mode (Monospaced, identical to classic Windows Notepad)
+            // Mode 3: Plain Text Mode (Strict monospaced unstyled Consolas, classic Notepad)
             if root.active_mode == 3 : VerticalLayout {
-                padding: 4px;
-                raw_edit := TextEdit {
+                padding: 6px;
+                raw_editor := TextEdit {
                     text <=> root.doc_text;
                     font-family: "Consolas";
                     font-size: 14px;
@@ -508,30 +814,191 @@ export component AppWindow inherits Window {
         // Minimal Bottom Status Bar
         Rectangle {
             height: 24px;
-            background: #f0f0f0;
+            background: #202020;
             Rectangle {
                 y: 0px;
                 height: 1px;
-                background: #dcdcdc;
+                background: #2b2b2b;
             }
 
             HorizontalLayout {
                 padding-left: 12px;
                 padding-right: 12px;
-                spacing: 16px;
                 alignment: space-between;
 
                 HorizontalLayout {
                     spacing: 16px;
-                    Text { text: root.status_line_col; font-size: 11px; vertical-alignment: center; color: #333333; }
-                    Text { text: root.status_counts; font-size: 11px; vertical-alignment: center; color: #333333; }
+                    Text { text: root.status_line_col; font-size: 11px; vertical-alignment: center; color: #9ca3af; }
+                    Text { text: root.status_counts; font-size: 11px; vertical-alignment: center; color: #9ca3af; }
                 }
 
                 HorizontalLayout {
                     spacing: 16px;
-                    Text { text: root.status_encoding; font-size: 11px; vertical-alignment: center; color: #333333; }
-                    Text { text: root.status_line_ending; font-size: 11px; vertical-alignment: center; color: #333333; }
-                    Text { text: root.status_zoom; font-size: 11px; vertical-alignment: center; color: #333333; }
+                    Text { text: root.status_encoding; font-size: 11px; vertical-alignment: center; color: #9ca3af; }
+                    Text { text: root.status_line_ending; font-size: 11px; vertical-alignment: center; color: #9ca3af; }
+                    Text { text: root.status_zoom; font-size: 11px; vertical-alignment: center; color: #9ca3af; }
+                }
+            }
+        }
+    }
+
+    // Dismiss overlay for menus and dropdowns
+    if root.active_menu != -1 || root.mode_dropdown_open : TouchArea {
+        clicked => {
+            root.active_menu = -1;
+            root.mode_dropdown_open = false;
+        }
+    }
+
+    // Top-Left Dropdown Menus
+    if root.active_menu == 0 : Rectangle {
+        x: 8px;
+        y: 34px;
+        width: 170px;
+        background: #252525;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: #374151;
+
+        VerticalLayout {
+            padding: 4px;
+            spacing: 2px;
+            MenuItem { text: "New"; shortcut: "Ctrl+N"; clicked => { root.active_menu = -1; root.new_doc(); } }
+            MenuItem { text: "Open..."; shortcut: "Ctrl+O"; clicked => { root.active_menu = -1; root.open_doc(); } }
+            MenuItem { text: "Save"; shortcut: "Ctrl+S"; clicked => { root.active_menu = -1; root.save_doc(); } }
+            MenuItem { text: "Save As..."; shortcut: "Ctrl+Shift+S"; clicked => { root.active_menu = -1; root.save_as_doc(); } }
+            Rectangle { height: 1px; background: #374151; }
+            MenuItem { text: "Exit"; shortcut: "Alt+F4"; clicked => { root.active_menu = -1; root.menu_action("exit"); } }
+        }
+    }
+
+    if root.active_menu == 1 : Rectangle {
+        x: 46px;
+        y: 34px;
+        width: 170px;
+        background: #252525;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: #374151;
+
+        VerticalLayout {
+            padding: 4px;
+            spacing: 2px;
+            MenuItem { text: "Undo"; shortcut: "Ctrl+Z"; clicked => { root.active_menu = -1; root.menu_action("undo"); } }
+            Rectangle { height: 1px; background: #374151; }
+            MenuItem { text: "Find..."; shortcut: "Ctrl+F"; clicked => { root.active_menu = -1; root.trigger_find(); } }
+            MenuItem { text: "Replace..."; shortcut: "Ctrl+H"; clicked => { root.active_menu = -1; root.trigger_replace(); } }
+        }
+    }
+
+    if root.active_menu == 2 : Rectangle {
+        x: 86px;
+        y: 34px;
+        width: 180px;
+        background: #252525;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: #374151;
+
+        VerticalLayout {
+            padding: 4px;
+            spacing: 2px;
+            MenuItem { text: "Bold"; shortcut: "Ctrl+B"; clicked => { root.active_menu = -1; root.toolbar_click("bold"); } }
+            MenuItem { text: "Italic"; shortcut: "Ctrl+I"; clicked => { root.active_menu = -1; root.toolbar_click("italic"); } }
+            MenuItem { text: "Strikethrough"; shortcut: ""; clicked => { root.active_menu = -1; root.toolbar_click("strike"); } }
+            Rectangle { height: 1px; background: #374151; }
+            MenuItem { text: "Heading 1"; shortcut: "Ctrl+1"; clicked => { root.active_menu = -1; root.toolbar_click("h1"); } }
+            MenuItem { text: "Heading 2"; shortcut: "Ctrl+2"; clicked => { root.active_menu = -1; root.toolbar_click("h2"); } }
+            MenuItem { text: "Heading 3"; shortcut: "Ctrl+3"; clicked => { root.active_menu = -1; root.toolbar_click("h3"); } }
+            Rectangle { height: 1px; background: #374151; }
+            MenuItem { text: "Bullet List"; shortcut: ""; clicked => { root.active_menu = -1; root.toolbar_click("bullet"); } }
+            MenuItem { text: "Numbered List"; shortcut: ""; clicked => { root.active_menu = -1; root.toolbar_click("numbered"); } }
+            MenuItem { text: "Task Checkbox"; shortcut: ""; clicked => { root.active_menu = -1; root.toolbar_click("checkbox"); } }
+        }
+    }
+
+    if root.active_menu == 3 : Rectangle {
+        x: 142px;
+        y: 34px;
+        width: 170px;
+        background: #252525;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: #374151;
+
+        VerticalLayout {
+            padding: 4px;
+            spacing: 2px;
+            MenuItem { text: "Reading Mode"; shortcut: "Alt+1"; clicked => { root.active_menu = -1; root.active_mode = 0; root.mode_selected(0); } }
+            MenuItem { text: "Live Preview"; shortcut: "Alt+2"; clicked => { root.active_menu = -1; root.active_mode = 1; root.mode_selected(1); } }
+            MenuItem { text: "Source Mode"; shortcut: "Alt+3"; clicked => { root.active_menu = -1; root.active_mode = 2; root.mode_selected(2); } }
+            MenuItem { text: "Plain Text"; shortcut: "Alt+4"; clicked => { root.active_menu = -1; root.active_mode = 3; root.mode_selected(3); } }
+        }
+    }
+
+    if root.active_menu == 4 : Rectangle {
+        x: 184px;
+        y: 34px;
+        width: 160px;
+        background: #252525;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: #374151;
+
+        VerticalLayout {
+            padding: 4px;
+            spacing: 2px;
+            MenuItem { text: "About MdPad"; shortcut: ""; clicked => { root.active_menu = -1; root.menu_action("about"); } }
+        }
+    }
+
+    // Top-Right Mode Selector Dropdown Popup
+    if root.mode_dropdown_open : Rectangle {
+        x: parent.width - 165px;
+        y: 34px;
+        width: 155px;
+        background: #252525;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: #374151;
+
+        VerticalLayout {
+            padding: 4px;
+            spacing: 2px;
+            MenuItem {
+                text: "Reading Mode";
+                shortcut: root.active_mode == 0 ? "✓" : "";
+                clicked => {
+                    root.mode_dropdown_open = false;
+                    root.active_mode = 0;
+                    root.mode_selected(0);
+                }
+            }
+            MenuItem {
+                text: "Live Preview";
+                shortcut: root.active_mode == 1 ? "✓" : "";
+                clicked => {
+                    root.mode_dropdown_open = false;
+                    root.active_mode = 1;
+                    root.mode_selected(1);
+                }
+            }
+            MenuItem {
+                text: "Source Mode";
+                shortcut: root.active_mode == 2 ? "✓" : "";
+                clicked => {
+                    root.mode_dropdown_open = false;
+                    root.active_mode = 2;
+                    root.mode_selected(2);
+                }
+            }
+            MenuItem {
+                text: "Plain Text";
+                shortcut: root.active_mode == 3 ? "✓" : "";
+                clicked => {
+                    root.mode_dropdown_open = false;
+                    root.active_mode = 3;
+                    root.mode_selected(3);
                 }
             }
         }
@@ -539,46 +1006,44 @@ export component AppWindow inherits Window {
 
     // Unsaved Changes Dialog Modal
     if root.unsaved_dialog_open : Rectangle {
-        background: #00000044;
-
-        // Backdrop intercepting clicks so underlying controls cannot be triggered
+        background: #00000088;
         TouchArea {}
 
         Rectangle {
             width: 380px;
             height: 140px;
-            background: #ffffff;
-            border-radius: 6px;
+            background: #252525;
+            border-radius: 8px;
             border-width: 1px;
-            border-color: #cccccc;
+            border-color: #374151;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
 
             VerticalLayout {
-                padding: 16px;
+                padding: 18px;
                 spacing: 16px;
 
                 Text {
                     text: root.dialog_text;
                     font-size: 14px;
                     wrap: word-wrap;
-                    color: #111827;
+                    color: #f3f4f6;
                 }
 
                 HorizontalLayout {
                     spacing: 8px;
                     alignment: end;
 
-                    ToolbarButton {
+                    AppDialogButton {
                         text: "Save";
-                        is_active: true;
+                        is_primary: true;
                         clicked => { root.dialog_action(0); }
                     }
-                    ToolbarButton {
+                    AppDialogButton {
                         text: "Don't Save";
                         clicked => { root.dialog_action(1); }
                     }
-                    ToolbarButton {
+                    AppDialogButton {
                         text: "Cancel";
                         clicked => { root.dialog_action(2); }
                     }

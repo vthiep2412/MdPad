@@ -194,3 +194,294 @@ pub fn toggle_task_checkbox(content: &str, target_line_index: usize) -> String {
     }
     out
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceLine {
+    pub line_index: usize,
+    pub raw_text: String,
+    pub prefix: String,
+    pub content: String,
+    pub kind: i32,
+    pub is_bold: bool,
+}
+
+pub fn parse_source_lines(content: &str) -> Vec<SourceLine> {
+    let mut result = Vec::new();
+    let lines: Vec<&str> = if content.is_empty() {
+        vec![""]
+    } else {
+        content.split('\n').collect()
+    };
+
+    for (i, &raw_line) in lines.iter().enumerate() {
+        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+        let trimmed = line.trim_start();
+        let indent = &line[..(line.len() - trimmed.len())];
+
+        if trimmed.starts_with("# ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}# ", indent),
+                content: trimmed[2..].to_string(),
+                kind: 1,
+                is_bold: true,
+            });
+        } else if trimmed.starts_with("## ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}## ", indent),
+                content: trimmed[3..].to_string(),
+                kind: 2,
+                is_bold: true,
+            });
+        } else if trimmed.starts_with("### ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}### ", indent),
+                content: trimmed[4..].to_string(),
+                kind: 3,
+                is_bold: true,
+            });
+        } else if trimmed.starts_with("#### ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}#### ", indent),
+                content: trimmed[5..].to_string(),
+                kind: 4,
+                is_bold: true,
+            });
+        } else if trimmed.starts_with("##### ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}##### ", indent),
+                content: trimmed[6..].to_string(),
+                kind: 5,
+                is_bold: true,
+            });
+        } else if trimmed.starts_with("###### ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}###### ", indent),
+                content: trimmed[7..].to_string(),
+                kind: 6,
+                is_bold: true,
+            });
+        } else if trimmed.starts_with("> ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}> ", indent),
+                content: trimmed[2..].to_string(),
+                kind: 7,
+                is_bold: false,
+            });
+        } else if trimmed.starts_with("- [ ] ") || trimmed.starts_with("- [x] ") || trimmed.starts_with("- [X] ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}{}", indent, &trimmed[..6]),
+                content: trimmed[6..].to_string(),
+                kind: 9,
+                is_bold: false,
+            });
+        } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("+ ") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}{}", indent, &trimmed[..2]),
+                content: trimmed[2..].to_string(),
+                kind: 8,
+                is_bold: false,
+            });
+        } else if trimmed.starts_with("```") {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: format!("{}```", indent),
+                content: trimmed[3..].to_string(),
+                kind: 10,
+                is_bold: false,
+            });
+        } else if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: line.to_string(),
+                content: String::new(),
+                kind: 11,
+                is_bold: false,
+            });
+        } else {
+            let is_bold = trimmed.contains("**") || trimmed.contains("__");
+            result.push(SourceLine {
+                line_index: i,
+                raw_text: line.to_string(),
+                prefix: String::new(),
+                content: line.to_string(),
+                kind: 0,
+                is_bold,
+            });
+        }
+    }
+
+    result
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiveItem {
+    pub line_index: usize,
+    pub raw_text: String,
+    pub kind: i32,
+    pub text: String,
+    pub checked: bool,
+}
+
+pub fn parse_live_items(content: &str) -> Vec<LiveItem> {
+    let mut result = Vec::new();
+    let lines: Vec<&str> = if content.is_empty() {
+        vec![""]
+    } else {
+        content.split('\n').collect()
+    };
+
+    for (i, &raw_line) in lines.iter().enumerate() {
+        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("# ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 1,
+                text: trimmed[2..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("## ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 2,
+                text: trimmed[3..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("### ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 3,
+                text: trimmed[4..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("#### ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 4,
+                text: trimmed[5..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("##### ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 5,
+                text: trimmed[6..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("###### ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 6,
+                text: trimmed[7..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("- [ ] ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 7,
+                text: trimmed[6..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("- [x] ") || trimmed.starts_with("- [X] ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 7,
+                text: trimmed[6..].trim().to_string(),
+                checked: true,
+            });
+        } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("+ ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 8,
+                text: trimmed[2..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("> ") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 9,
+                text: trimmed[2..].trim().to_string(),
+                checked: false,
+            });
+        } else if trimmed.starts_with("```") {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 10,
+                text: trimmed.to_string(),
+                checked: false,
+            });
+        } else if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 11,
+                text: String::new(),
+                checked: false,
+            });
+        } else {
+            result.push(LiveItem {
+                line_index: i,
+                raw_text: line.to_string(),
+                kind: 0,
+                text: line.to_string(),
+                checked: false,
+            });
+        }
+    }
+
+    result
+}
+
+pub fn update_line_in_text(content: &str, line_idx: usize, new_line: &str) -> String {
+    let lines: Vec<&str> = content.split('\n').collect();
+    let ending_newline = content.ends_with('\n');
+    if line_idx < lines.len() {
+        let mut new_lines = Vec::new();
+        for (i, &l) in lines.iter().enumerate() {
+            if i == line_idx {
+                new_lines.push(new_line.to_string());
+            } else {
+                new_lines.push(l.strip_suffix('\r').unwrap_or(l).to_string());
+            }
+        }
+        let mut out = new_lines.join("\n");
+        if ending_newline && !out.ends_with('\n') {
+            out.push('\n');
+        }
+        out
+    } else {
+        content.to_string()
+    }
+}
